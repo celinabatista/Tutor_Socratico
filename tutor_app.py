@@ -62,7 +62,7 @@ if not config_atual:
         codigo_magico = codificar_config(nova_config)
         
         # AVISO: Substitua 'sua-app.streamlit.app' pelo link real da sua aplicação no Streamlit Cloud
-        link_final = f"https://https://tutorsocratico-vuenltzglqdgwhegtewr2k.streamlit.app/?c={codigo_magico}"
+        link_final = f"https://tutorsocratico-vuenltzglqdgwhegtewr2k.streamlit.app/?c={codigo_magico}"
         
         st.success("🎉 O seu tutor foi criado com sucesso!")
         st.write("Copie o link abaixo e partilhe com os seus alunos no Moodle, Teams ou Classroom:")
