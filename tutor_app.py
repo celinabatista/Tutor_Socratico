@@ -116,26 +116,38 @@ else:
         with st.chat_message("user"):
             st.markdown(pergunta_aluno)
             
-        with st.chat_message("assistant"):
+       with st.chat_message("assistant"):
             resposta_placeholder = st.empty()
-            try:
-                resposta_ia = st.session_state.chat_session.send_message(pergunta_aluno)
-                texto_resposta = resposta_ia.text
-                
-                resposta_completa = ""
-                for palavra in texto_resposta.split():
-                    resposta_completa += palavra + " "
-                    time.sleep(0.03)
-                    resposta_placeholder.markdown(resposta_completa + "▌")
+            
+            sucesso = False
+            tentativas = 0
+            
+            while not sucesso and tentativas < 3:
+                try:
+                    # Tenta enviar a mensagem
+                    resposta_ia = st.session_state.chat_session.send_message(pergunta_aluno)
+                    texto_resposta = resposta_ia.text
+                    sucesso = True # Se passou aqui, funcionou!
                     
-                resposta_placeholder.markdown(resposta_completa)
-                st.session_state.mensagens.append({"role": "assistant", "content": texto_resposta})
-                
-            except Exception as e:
-                st.error(f"Erro de comunicação: {e}")
+                    resposta_completa = ""
+                    for palavra in texto_resposta.split():
+                        resposta_completa += palavra + " "
+                        time.sleep(0.03)
+                        resposta_placeholder.markdown(resposta_completa + "▌")
+                        
+                    resposta_placeholder.markdown(resposta_completa)
+                    st.session_state.mensagens.append({"role": "assistant", "content": texto_resposta})
                     
-                resposta_placeholder.markdown(resposta_completa)
-                st.session_state.mensagens.append({"role": "assistant", "content": texto_resposta})
-                
-            except Exception as e:
-                st.error(f"Erro de comunicação: {e}")
+                except Exception as e:
+                    erro_str = str(e).lower()
+                    # Verifica se é um erro de limite excedido (429 ou esgotamento)
+                    if "429" in erro_str or "exhausted" in erro_str or "quota" in erro_str:
+                        tentativas += 1
+                        if tentativas < 3:
+                            resposta_placeholder.markdown(f"*O tutor está a processar muitos pedidos da turma... (tentativa {tentativas}/3)* ⏳")
+                            time.sleep(4) # Espera 4 segundos antes de tentar de novo
+                        else:
+                            st.warning("⚠️ O sistema está com muito tráfego neste momento. Por favor, aguarda 10 segundos e tenta enviar novamente.")
+                    else:
+                        st.error(f"Erro de comunicação: {e}")
+                        break # Se for outro erro grave, para e mostra o erro
