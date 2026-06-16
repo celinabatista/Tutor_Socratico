@@ -28,7 +28,8 @@ if os.path.exists(FICHEIRO_CONFIG):
 # ==========================================
 # 2. CONFIGURAÇÃO DA API DO GOOGLE GEMINI
 # ==========================================
-CHAVE_API = "AQ.Ab8RN6JfrbMNN-8wlqwN_udkXoJ6AyK9T2F5D6RqkA9m_pvB4A"
+# Em vez de colocar a chave diretamente, o Streamlit vai ler do seu cofre seguro
+CHAVE_API = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=CHAVE_API)
 
 # Inicializar o modelo com o System Prompt dinâmico do ficheiro JSON
