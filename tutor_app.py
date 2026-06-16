@@ -115,12 +115,10 @@ else:
         st.session_state.mensagens.append({"role": "user", "content": pergunta_aluno})
         with st.chat_message("user"):
             st.markdown(pergunta_aluno)
-            
-      with st.chat_message("assistant"):
+        with st.chat_message("assistant"):
             resposta_placeholder = st.empty()
             sucesso = False
             tentativas = 0
-            
             while not sucesso and tentativas < 3:
                 try:
                     # Tenta enviar a mensagem
