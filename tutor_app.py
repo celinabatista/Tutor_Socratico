@@ -1,96 +1,127 @@
 import streamlit as st
 import google.generativeai as genai
 import json
-import os
+import base64
 import time
 
 # ==========================================
-# 1. LEITURA DINÂMICA CONFIGURAÇÃO DOS PROFESSORES
+# 1. FUNÇÕES DE CODIFICAÇÃO (LINK MÁGICO)
 # ==========================================
-FICHEIRO_CONFIG = "config_tutor.json"
+# Transforma as configurações do professor num código de texto seguro para links
+def codificar_config(config_dict):
+    json_str = json.dumps(config_dict)
+    return base64.urlsafe_b64encode(json_str.encode()).decode()
 
-# Valores padrão caso o ficheiro de configuração falhe ou não exista
-config = {
-    "NOME_PROFESSOR": "Celina Baptista",
-    "DISCIPLINA": "Aplicações Informáticas",
-    "MENSAGEM_BOAS_VINDAS": "Olá! Sou o teu tutor de apoio. Que desafio de lógica vamos explorar hoje?",
-    "SYSTEM_PROMPT": "És um tutor socrático especialista em apoiar alunos universitários. Não dês respostas diretas."
-}
-
-# Tenta ler o ficheiro JSON editado pelo professor
-if os.path.exists(FICHEIRO_CONFIG):
+# Transforma o código do link de volta nas configurações do professor
+def descodificar_config(codigo_str):
     try:
-        with open(FICHEIRO_CONFIG, "r", encoding="utf-8") as f:
-            config = json.load(f)
+        json_str = base64.urlsafe_b64decode(codigo_str.encode()).decode()
+        return json.loads(json_str)
+    except:
+        return None
+
+# ==========================================
+# 2. VERIFICAR MODO (PROFESSOR vs ALUNO)
+# ==========================================
+# O Streamlit lê os parâmetros do URL (ex: ?c=codigo_encriptado)
+parametros_url = st.query_params
+config_atual = None
+
+# Se existir o parâmetro 'c' no URL, estamos no Modo Aluno
+if "c" in parametros_url:
+    config_atual = descodificar_config(parametros_url["c"])
+
+# ==========================================
+# 3. INTERFACE - MODO PROFESSOR (CRIADOR)
+# ==========================================
+if not config_atual:
+    st.set_page_config(page_title="Criador de Tutores IA", page_icon="⚙️", layout="centered")
+    st.title("⚙️ Plataforma de Tutores Socráticos")
+    st.write("Crie um tutor personalizado para a sua disciplina e partilhe o link com os alunos.")
+    st.divider()
+
+    with st.form("form_criacao"):
+        nome_prof = st.text_input("O seu Nome (ex: Prof.ª Celina Baptista)")
+        disciplina = st.text_input("Disciplina ou Módulo")
+        boas_vindas = st.text_area("Mensagem Inicial da IA", value="Olá! Sou o teu tutor. Que desafio vamos explorar hoje?")
+        prompt_ia = st.text_area("Instruções Pedagógicas (System Prompt)", height=150, 
+                                 value="És um tutor socrático. Nunca dês as respostas diretas, orienta o aluno com perguntas lógicas.")
+        
+        gerar_btn = st.form_submit_button("Gerar o Meu Tutor")
+
+    if gerar_btn and nome_prof and disciplina:
+        # Criar o dicionário com os dados
+        nova_config = {
+            "NOME_PROFESSOR": nome_prof,
+            "DISCIPLINA": disciplina,
+            "MENSAGEM_BOAS_VINDAS": boas_vindas,
+            "SYSTEM_PROMPT": prompt_ia
+        }
+        
+        # Gerar o código e construir o link
+        codigo_magico = codificar_config(nova_config)
+        
+        # AVISO: Substitua 'sua-app.streamlit.app' pelo link real da sua aplicação no Streamlit Cloud
+        link_final = f"https://https://tutorsocratico-vuenltzglqdgwhegtewr2k.streamlit.app/?c={codigo_magico}"
+        
+        st.success("🎉 O seu tutor foi criado com sucesso!")
+        st.write("Copie o link abaixo e partilhe com os seus alunos no Moodle, Teams ou Classroom:")
+        st.code(link_final, language="http")
+        st.info("Testar: Abra um novo separador no navegador e cole o link para ver o tutor a funcionar.")
+
+# ==========================================
+# 4. INTERFACE - MODO ALUNO (O CHAT)
+# ==========================================
+else:
+    # Ler a chave segura guardada no Streamlit Secrets
+    try:
+        CHAVE_API = st.secrets["GEMINI_API_KEY"]
+        genai.configure(api_key=CHAVE_API)
     except Exception as e:
-        st.error(f"Erro ao ler o ficheiro de configuração: {e}. A usar valores padrão.")
+        st.error("Erro ao ler a Chave API. Verifique os Secrets do Streamlit.")
+        st.stop()
 
-# ==========================================
-# 2. CONFIGURAÇÃO DA API DO GOOGLE GEMINI
-# ==========================================
-# Em vez de colocar a chave diretamente, o Streamlit vai ler do seu cofre seguro
-CHAVE_API = st.secrets["GEMINI_API_KEY"]
-genai.configure(api_key=CHAVE_API)
+    # Inicializar o modelo com o Prompt injetado pelo Link Mágico
+    modelo = genai.GenerativeModel(
+        model_name="gemini-2.5-flash",
+        system_instruction=config_atual["SYSTEM_PROMPT"]
+    )
 
-# Inicializar o modelo com o System Prompt dinâmico do ficheiro JSON
-modelo = genai.GenerativeModel(
-    model_name="gemini-2.5-flash",
-    system_instruction=config["SYSTEM_PROMPT"]
-)
+    st.set_page_config(page_title=f"Tutor - {config_atual['DISCIPLINA']}", page_icon="🎓", layout="centered")
+    st.title("Tutor Socrático")
+    st.subheader(config_atual['DISCIPLINA'])
+    st.caption(f"Desenvolvido para as turmas de: {config_atual['NOME_PROFESSOR']}")
+    st.divider()
 
-# ==========================================
-# 3. INTERFACE DINÂMICA (STREAMLIT)
-# ==========================================
-st.set_page_config(page_title=f"Tutor IA - {config['DISCIPLINA']}", page_icon="🎓", layout="centered")
+    if "mensagens" not in st.session_state:
+        st.session_state.mensagens = [{"role": "assistant", "content": config_atual["MENSAGEM_BOAS_VINDAS"]}]
 
-# O título e a legenda mudam automaticamente com base no ficheiro JSON
-st.title(f"Tutor Socrático")
-st.subheader(f"{config['DISCIPLINA']}")
-st.caption(f"Desenvolvido para as aulas de: {config['NOME_PROFESSOR']}")
-st.divider()
+    if "chat_session" not in st.session_state:
+        st.session_state.chat_session = modelo.start_chat(history=[])
 
-# Inicializar a memória visual do chat com a mensagem de boas-vindas do JSON
-if "mensagens" not in st.session_state:
-    st.session_state.mensagens = [
-        {"role": "assistant", "content": config["MENSAGEM_BOAS_VINDAS"]}
-    ]
+    for msg in st.session_state.mensagens:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-# Inicializar a sessão de chat nativa do Gemini
-if "chat_session" not in st.session_state:
-    st.session_state.chat_session = modelo.start_chat(history=[])
-
-# Mostrar as mensagens anteriores no ecrã
-for msg in st.session_state.mensagens:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-# ==========================================
-# 4. INTERAÇÃO E RESPOSTA DA IA
-# ==========================================
-if pergunta_aluno := st.chat_input("Escreve aqui a tua dúvida ou raciocínio..."):
-
-    # Mostrar e guardar a pergunta do aluno
-    st.session_state.mensagens.append({"role": "user", "content": pergunta_aluno})
-    with st.chat_message("user"):
-        st.markdown(pergunta_aluno)
-
-    # Processar e mostrar a resposta do Tutor
-    with st.chat_message("assistant"):
-        resposta_placeholder = st.empty()
-
-        try:
-            resposta_ia = st.session_state.chat_session.send_message(pergunta_aluno)
-            texto_resposta = resposta_ia.text
-
-            # Efeito visual de digitação gradual
-            resposta_completa = ""
-            for palavra in texto_resposta.split():
-                resposta_completa += palavra + " "
-                time.sleep(0.03)
-                resposta_placeholder.markdown(resposta_completa + "▌")
-
-            resposta_placeholder.markdown(resposta_completa)
-            st.session_state.mensagens.append({"role": "assistant", "content": texto_resposta})
-
-        except Exception as e:
-            st.error(f"Ocorreu um erro de comunicação com o tutor: {e}")
+    if pergunta_aluno := st.chat_input("Escreve aqui o teu raciocínio..."):
+        st.session_state.mensagens.append({"role": "user", "content": pergunta_aluno})
+        with st.chat_message("user"):
+            st.markdown(pergunta_aluno)
+            
+        with st.chat_message("assistant"):
+            resposta_placeholder = st.empty()
+            try:
+                resposta_ia = st.session_state.chat_session.send_message(pergunta_aluno)
+                texto_resposta = resposta_ia.text
+                
+                resposta_completa = ""
+                for palavra in texto_resposta.split():
+                    resposta_completa += palavra + " "
+                    time.sleep(0.03)
+                    resposta_placeholder.markdown(resposta_completa + "▌")
+                    
+                resposta_placeholder.markdown(resposta_completa)
+                st.session_state.mensagens.append({"role": "assistant", "content": texto_resposta})
+                
+            except Exception as e:
+                st.error(f"Erro de comunicação: {e}")
